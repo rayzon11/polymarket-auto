@@ -1,121 +1,103 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import {
-  Activity, Bot, TrendingUp, TrendingDown, DollarSign,
-  Play, Square, Zap, BarChart3, Newspaper, Target,
-  AlertCircle, CheckCircle, Clock, Shield,
-} from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
-// Types for API responses
+// ─── Icon Components ───────────────────────────────────────
+function Icon({ d, className = 'w-5 h-5' }: { d: string; className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d={d} />
+    </svg>
+  );
+}
+
+const icons = {
+  dashboard: 'M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z',
+  chart: 'M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z',
+  bot: 'M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z',
+  news: 'M12 7.5h1.5m-1.5 3h1.5m-7.5 3h7.5m-7.5 3h7.5m3-9h3.375c.621 0 1.125.504 1.125 1.125V18a2.25 2.25 0 01-2.25 2.25M16.5 7.5V18a2.25 2.25 0 002.25 2.25M16.5 7.5V4.875c0-.621-.504-1.125-1.125-1.125H4.125C3.504 3.75 3 4.254 3 4.875V18a2.25 2.25 0 002.25 2.25h13.5M6 7.5h3v3H6V7.5z',
+  wallet: 'M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 110-6h5.25A2.25 2.25 0 0121 6v-1.5A2.25 2.25 0 0018.75 2.25H5.25A2.25 2.25 0 003 4.5v15A2.25 2.25 0 005.25 21.75h13.5A2.25 2.25 0 0021 19.5v-1.5a2.25 2.25 0 00-2.25-2.25H15a3 3 0 010-6h3.75A2.25 2.25 0 0021 12z',
+  play: 'M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z',
+  stop: 'M5.25 7.5A2.25 2.25 0 017.5 5.25h9a2.25 2.25 0 012.25 2.25v9a2.25 2.25 0 01-2.25 2.25h-9a2.25 2.25 0 01-2.25-2.25v-9z',
+  check: 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  x: 'M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  signal: 'M9.348 14.652a3.75 3.75 0 010-5.304m5.304 0a3.75 3.75 0 010 5.304m-7.425 2.121a6.75 6.75 0 010-9.546m9.546 0a6.75 6.75 0 010 9.546M5.106 18.894c-3.808-3.808-3.808-9.98 0-13.788m13.788 0c3.808 3.808 3.808 9.98 0 13.788M12 12h.008v.008H12V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z',
+  clock: 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z',
+  target: 'M7.5 3.75H6A2.25 2.25 0 003.75 6v1.5M16.5 3.75H18A2.25 2.25 0 0120.25 6v1.5m0 9V18A2.25 2.25 0 0118 20.25h-1.5m-9 0H6A2.25 2.25 0 013.75 18v-1.5M15 12a3 3 0 11-6 0 3 3 0 016 0z',
+  trophy: 'M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M18.75 4.236c.982.143 1.954.317 2.916.52A6.003 6.003 0 0016.27 9.728M18.75 4.236V4.5c0 2.108-.966 3.99-2.48 5.228m0 0a6.023 6.023 0 01-2.52.568m0 0a6.023 6.023 0 01-2.52-.568',
+  lightning: 'M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z',
+  arrowUp: 'M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941',
+  arrowDown: 'M2.25 6L9 12.75l4.286-4.286a11.948 11.948 0 014.306 6.43l.776 2.898m0 0l3.182-5.511m-3.182 5.51l-5.511-3.181',
+  shield: 'M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z',
+  eye: 'M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 11-6 0 3 3 0 016 0z',
+  settings: 'M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z M15 12a3 3 0 11-6 0 3 3 0 016 0z',
+};
+
+// ─── Types ─────────────────────────────────────────────────
 interface BotStatus {
-  running: boolean;
-  dryRun: boolean;
-  tickCount: number;
-  tradesExecuted: number;
-  tradesSkipped: number;
-  errors: number;
-  lastTickAt: string | null;
-  nextTickAt: string | null;
-  intervalMs: number;
-  uptime: number;
-  startedAt: string | null;
-  openPositions: number;
-  totalExposure: number;
+  running: boolean; dryRun: boolean; tickCount: number;
+  tradesExecuted: number; tradesSkipped: number; errors: number;
+  lastTickAt: string | null; nextTickAt: string | null;
+  intervalMs: number; uptime: number; startedAt: string | null;
+  openPositions: number; totalExposure: number;
 }
-
 interface Position {
-  id: string;
-  question: string;
-  signal: string;
-  entryPrice: number;
-  currentPrice: number;
-  size: number;
-  unrealizedPnl: number;
-  category: string;
-  openedAt: string;
-  consensusConfidence: number;
+  id: string; question: string; signal: string; entryPrice: number;
+  currentPrice: number; size: number; unrealizedPnl: number;
+  category: string; openedAt: string; consensusConfidence: number;
 }
-
 interface Analytics {
-  totalPnl: number;
-  unrealizedPnl: number;
-  realizedPnl: number;
-  winRate: number;
-  totalTrades: number;
-  winningTrades: number;
-  losingTrades: number;
-  openPositions: number;
-  sharpeRatio: number;
-  maxDrawdown: number;
-  avgHoldHours: number;
-  agentStats: AgentStat[];
-  tradesSkipped: number;
+  totalPnl: number; unrealizedPnl: number; realizedPnl: number;
+  winRate: number; totalTrades: number; winningTrades: number;
+  losingTrades: number; openPositions: number; sharpeRatio: number;
+  maxDrawdown: number; avgHoldHours: number;
+  agentStats: AgentStat[]; tradesSkipped: number;
 }
-
 interface AgentStat {
-  name: string;
-  level: number;
-  totalSignals: number;
-  avgConfidence: number;
-  accuracy: number;
-  brierScore: number;
-  contributionScore: number;
+  name: string; level: number; totalSignals: number; avgConfidence: number;
+  accuracy: number; brierScore: number; contributionScore: number;
 }
-
 interface Decision {
-  timestamp: string;
-  market: string;
-  shouldTrade: boolean;
-  signal: string;
-  confidence: number;
-  edge: number;
-  agreeCount: number;
+  timestamp: string; market: string; shouldTrade: boolean; signal: string;
+  confidence: number; edge: number; agreeCount: number;
 }
-
 interface NewsArticle {
-  title: string;
-  source: string;
-  sentimentScore: number;
-  publishedAt: string;
+  title: string; source: string; sentimentScore: number; publishedAt: string;
 }
-
 interface SSEEvent {
-  type: string;
-  timestamp: string;
-  data: any;
+  type: string; timestamp: string; data: any;
 }
 
-function formatTime(iso: string | null): string {
-  if (!iso) return 'Never';
-  return new Date(iso).toLocaleTimeString();
+// ─── Helpers ───────────────────────────────────────────────
+function fmt(n: number, d = 2) { return n.toFixed(d); }
+function fmtUsd(n: number) { return `${n >= 0 ? '+' : ''}$${fmt(Math.abs(n))}` }
+function fmtPct(n: number) { return `${fmt(n * 100, 1)}%` }
+function fmtTime(iso: string | null) {
+  if (!iso) return '--:--';
+  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+function timeAgo(iso: string) {
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 60000) return `${Math.floor(ms / 1000)}s ago`;
+  if (ms < 3600000) return `${Math.floor(ms / 60000)}m ago`;
+  return `${Math.floor(ms / 3600000)}h ago`;
 }
 
-function formatPnl(pnl: number): string {
-  const sign = pnl >= 0 ? '+' : '';
-  return `${sign}$${pnl.toFixed(2)}`;
-}
+const AGENT_COLORS: Record<string, string> = {
+  scout: '#00bbff', analyst: '#00ff88', strategist: '#ffcc00',
+  quant: '#ff8800', oracle: '#aa66ff',
+};
+const AGENT_ICONS: Record<string, string> = {
+  scout: '🔍', analyst: '📊', strategist: '♟️', quant: '🧮', oracle: '🔮',
+};
+const AGENT_LABELS: Record<string, string> = {
+  scout: 'Scout', analyst: 'Analyst', strategist: 'Strategist',
+  quant: 'Quant', oracle: 'Oracle',
+};
 
-function pnlColor(pnl: number): string {
-  return pnl >= 0 ? 'text-terminal-green' : 'text-terminal-red';
-}
-
-function confidenceBar(value: number): string {
-  const pct = Math.round(value * 100);
-  if (pct >= 70) return 'bg-terminal-green';
-  if (pct >= 50) return 'bg-terminal-yellow';
-  return 'bg-terminal-red';
-}
-
-function signalBadge(signal: string): { bg: string; text: string } {
-  switch (signal) {
-    case 'BUY_YES': return { bg: 'bg-terminal-green/20 border-terminal-green/40', text: 'text-terminal-green' };
-    case 'BUY_NO': return { bg: 'bg-terminal-red/20 border-terminal-red/40', text: 'text-terminal-red' };
-    default: return { bg: 'bg-terminal-muted/20 border-terminal-muted/40', text: 'text-terminal-muted' };
-  }
-}
-
+// ─── Main Dashboard ────────────────────────────────────────
 export default function Dashboard() {
+  const [tab, setTab] = useState<'dashboard' | 'positions' | 'agents' | 'news' | 'log'>('dashboard');
   const [status, setStatus] = useState<BotStatus | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
@@ -123,338 +105,580 @@ export default function Dashboard() {
   const [news, setNews] = useState<NewsArticle[]>([]);
   const [events, setEvents] = useState<SSEEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const eventsRef = useRef<SSEEvent[]>([]);
 
   const fetchAll = useCallback(async () => {
     try {
-      const [statusRes, posRes, analyticsRes, decisionsRes, newsRes] = await Promise.allSettled([
-        fetch('/api/bot/status').then((r) => r.json()),
-        fetch('/api/positions').then((r) => r.json()),
-        fetch('/api/analytics').then((r) => r.json()),
-        fetch('/api/decisions?limit=20').then((r) => r.json()),
-        fetch('/api/news').then((r) => r.json()),
+      const [s, p, a, d, n] = await Promise.allSettled([
+        fetch('/api/bot/status').then(r => r.json()),
+        fetch('/api/positions').then(r => r.json()),
+        fetch('/api/analytics').then(r => r.json()),
+        fetch('/api/decisions?limit=30').then(r => r.json()),
+        fetch('/api/news').then(r => r.json()),
       ]);
-
-      if (statusRes.status === 'fulfilled') setStatus(statusRes.value);
-      if (posRes.status === 'fulfilled') setPositions(posRes.value.positions || []);
-      if (analyticsRes.status === 'fulfilled') setAnalytics(analyticsRes.value);
-      if (decisionsRes.status === 'fulfilled') setDecisions(decisionsRes.value.decisions || []);
-      if (newsRes.status === 'fulfilled') setNews((newsRes.value.articles || []).slice(0, 10));
-    } catch (err) {
-      console.error('Fetch error:', err);
-    } finally {
-      setLoading(false);
-    }
+      if (s.status === 'fulfilled') setStatus(s.value);
+      if (p.status === 'fulfilled') setPositions(p.value.positions || []);
+      if (a.status === 'fulfilled') setAnalytics(a.value);
+      if (d.status === 'fulfilled') setDecisions(d.value.decisions || []);
+      if (n.status === 'fulfilled') setNews((n.value.articles || []).slice(0, 20));
+    } catch {} finally { setLoading(false); }
   }, []);
 
-  // Initial load + polling
   useEffect(() => {
     fetchAll();
-    const interval = setInterval(fetchAll, 10000);
-    return () => clearInterval(interval);
+    const iv = setInterval(fetchAll, 8000);
+    return () => clearInterval(iv);
   }, [fetchAll]);
 
-  // SSE connection
   useEffect(() => {
     const es = new EventSource('/api/stream');
     es.onmessage = (e) => {
       try {
-        const event = JSON.parse(e.data) as SSEEvent;
-        setEvents((prev) => [event, ...prev].slice(0, 50));
-        // Refresh data on trade events
-        if (event.type === 'trade' || event.type === 'position_update') {
-          fetchAll();
-        }
+        const evt = JSON.parse(e.data) as SSEEvent;
+        eventsRef.current = [evt, ...eventsRef.current].slice(0, 100);
+        setEvents([...eventsRef.current]);
+        if (evt.type === 'trade' || evt.type === 'position_update') fetchAll();
       } catch {}
     };
     return () => es.close();
   }, [fetchAll]);
 
-  const handleStart = async () => {
-    await fetch('/api/bot/start', { method: 'POST' });
-    fetchAll();
+  const handleBotAction = async (action: 'start' | 'stop') => {
+    setActionLoading(true);
+    await fetch(`/api/bot/${action}`, { method: 'POST' });
+    await fetchAll();
+    setActionLoading(false);
   };
 
-  const handleStop = async () => {
-    await fetch('/api/bot/stop', { method: 'POST' });
-    fetchAll();
-  };
-
+  // ─── Loading State ─────────────────────────
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-terminal-muted flex items-center gap-2">
-          <Zap className="w-5 h-5 animate-pulse" />
-          Loading Polymarket Bot...
+        <div className="text-center animate-fade-in">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-glow-md animate-float">
+            <span className="text-2xl">🤖</span>
+          </div>
+          <p className="text-slate-400 font-medium">Initializing PolyBot AI...</p>
+          <div className="mt-3 w-48 h-1 mx-auto bg-surface-300 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-brand-500 to-neon-purple rounded-full shimmer" style={{ width: '60%' }} />
+          </div>
         </div>
       </div>
     );
   }
 
+  const navItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: icons.dashboard },
+    { id: 'positions', label: 'Positions', icon: icons.wallet },
+    { id: 'agents', label: 'Agents', icon: icons.bot },
+    { id: 'news', label: 'News', icon: icons.news },
+    { id: 'log', label: 'Log', icon: icons.chart },
+  ] as const;
+
   return (
-    <div className="min-h-screen p-4 max-w-[1600px] mx-auto">
-      {/* Header */}
-      <header className="flex items-center justify-between mb-6 pb-4 border-b border-terminal-border">
-        <div className="flex items-center gap-3">
-          <Bot className="w-8 h-8 text-terminal-purple" />
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">POLYMARKET AI BOT</h1>
-            <p className="text-xs text-terminal-muted">5-Agent Autonomous Trading System</p>
+    <div className="flex min-h-screen">
+      {/* ─── Sidebar ─── */}
+      <aside className="w-[72px] lg:w-[220px] fixed left-0 top-0 bottom-0 z-40 glass border-r border-surface-400/50 flex flex-col">
+        {/* Logo */}
+        <div className="p-4 lg:px-5 flex items-center gap-3 border-b border-surface-400/50">
+          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center shadow-glow-sm flex-shrink-0">
+            <span className="text-base">🤖</span>
+          </div>
+          <div className="hidden lg:block">
+            <h1 className="text-sm font-bold tracking-tight">PolyBot AI</h1>
+            <p className="text-[10px] text-slate-500">v1.0.0</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+
+        {/* Nav */}
+        <nav className="flex-1 py-3 px-2 lg:px-3 space-y-1">
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setTab(item.id)}
+              className={`nav-item w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium ${
+                tab === item.id ? 'active' : 'text-slate-500'
+              }`}
+            >
+              <Icon d={item.icon} className="w-5 h-5 flex-shrink-0" />
+              <span className="hidden lg:block">{item.label}</span>
+            </button>
+          ))}
+        </nav>
+
+        {/* Bot Control */}
+        <div className="p-3 lg:p-4 border-t border-surface-400/50 space-y-3">
           {status?.dryRun && (
-            <span className="px-2 py-1 text-xs bg-terminal-yellow/20 text-terminal-yellow border border-terminal-yellow/40 rounded">
-              DRY RUN
-            </span>
+            <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-neon-yellow/5 border border-neon-yellow/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-neon-yellow" />
+              <span className="text-[10px] font-semibold text-neon-yellow tracking-wide">DRY RUN</span>
+            </div>
           )}
-          <div className="flex items-center gap-2">
-            {status?.running ? (
-              <span className="flex items-center gap-1.5 text-terminal-green text-sm">
-                <span className="w-2 h-2 bg-terminal-green rounded-full animate-pulse-green" />
-                LIVE
-              </span>
-            ) : (
-              <span className="flex items-center gap-1.5 text-terminal-muted text-sm">
-                <span className="w-2 h-2 bg-terminal-muted rounded-full" />
-                STOPPED
-              </span>
-            )}
-          </div>
           <button
-            onClick={status?.running ? handleStop : handleStart}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border ${
+            onClick={() => handleBotAction(status?.running ? 'stop' : 'start')}
+            disabled={actionLoading}
+            className={`btn-press w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all ${
               status?.running
-                ? 'border-terminal-red/40 text-terminal-red hover:bg-terminal-red/10'
-                : 'border-terminal-green/40 text-terminal-green hover:bg-terminal-green/10'
-            }`}
+                ? 'bg-neon-red/10 text-neon-red border border-neon-red/20 hover:bg-neon-red/20'
+                : 'bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-glow-sm hover:shadow-glow-md'
+            } disabled:opacity-50`}
           >
-            {status?.running ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-            {status?.running ? 'Stop' : 'Start'}
+            <Icon d={status?.running ? icons.stop : icons.play} className="w-4 h-4" />
+            <span className="hidden lg:inline">{actionLoading ? '...' : status?.running ? 'Stop Bot' : 'Start Bot'}</span>
           </button>
         </div>
-      </header>
+      </aside>
 
-      {/* Stats Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
-        {[
-          { label: 'Ticks', value: status?.tickCount || 0, icon: Activity },
-          { label: 'Trades', value: status?.tradesExecuted || 0, icon: Target },
-          { label: 'Skipped', value: status?.tradesSkipped || 0, icon: Shield },
-          { label: 'Win Rate', value: `${((analytics?.winRate || 0) * 100).toFixed(0)}%`, icon: CheckCircle },
-          { label: 'Total PnL', value: formatPnl(analytics?.totalPnl || 0), icon: DollarSign, color: pnlColor(analytics?.totalPnl || 0) },
-          { label: 'Open', value: positions.length, icon: BarChart3 },
-          { label: 'Sharpe', value: (analytics?.sharpeRatio || 0).toFixed(2), icon: TrendingUp },
-          { label: 'Last Tick', value: formatTime(status?.lastTickAt || null), icon: Clock },
-        ].map((stat, i) => (
-          <div key={i} className="bg-terminal-surface border border-terminal-border rounded-lg p-3">
-            <div className="flex items-center gap-1.5 text-terminal-muted text-xs mb-1">
-              <stat.icon className="w-3 h-3" />
-              {stat.label}
-            </div>
-            <div className={`text-sm font-semibold ${(stat as any).color || ''}`}>
-              {stat.value}
+      {/* ─── Main Content ─── */}
+      <main className="flex-1 ml-[72px] lg:ml-[220px] p-4 lg:p-6 max-w-[1500px]">
+        {/* Top Bar */}
+        <header className="flex items-center justify-between mb-6 animate-fade-in">
+          <div>
+            <h2 className="text-xl lg:text-2xl font-bold tracking-tight">
+              {navItems.find(n => n.id === tab)?.label}
+            </h2>
+            <p className="text-sm text-slate-500 mt-0.5">
+              {status?.running ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-neon-green pulse-live" />
+                  <span className="text-neon-green font-medium">Live</span>
+                  <span className="text-slate-600">·</span>
+                  <span>Last tick {fmtTime(status.lastTickAt)}</span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-slate-600" />
+                  <span>Bot is stopped</span>
+                </span>
+              )}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-4 text-xs text-slate-500 bg-surface-100 rounded-xl px-4 py-2 border border-surface-400/50">
+              <span>Ticks: <strong className="text-slate-300">{status?.tickCount || 0}</strong></span>
+              <span className="w-px h-3 bg-surface-400" />
+              <span>Trades: <strong className="text-slate-300">{status?.tradesExecuted || 0}</strong></span>
+              <span className="w-px h-3 bg-surface-400" />
+              <span>Errors: <strong className="text-slate-300">{status?.errors || 0}</strong></span>
             </div>
           </div>
-        ))}
-      </div>
+        </header>
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Positions Panel */}
-        <div className="lg:col-span-2 bg-terminal-surface border border-terminal-border rounded-lg">
-          <div className="px-4 py-3 border-b border-terminal-border flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-terminal-blue" />
-            <h2 className="text-sm font-semibold">Open Positions</h2>
-            <span className="text-xs text-terminal-muted">({positions.length})</span>
-          </div>
-          <div className="overflow-x-auto">
-            {positions.length === 0 ? (
-              <div className="p-8 text-center text-terminal-muted text-sm">No open positions</div>
-            ) : (
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="text-terminal-muted border-b border-terminal-border">
-                    <th className="text-left px-4 py-2">Market</th>
-                    <th className="text-center px-2 py-2">Signal</th>
-                    <th className="text-right px-2 py-2">Entry</th>
-                    <th className="text-right px-2 py-2">Current</th>
-                    <th className="text-right px-2 py-2">Size</th>
-                    <th className="text-right px-4 py-2">PnL</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {positions.map((pos) => {
-                    const badge = signalBadge(pos.signal);
+        {/* ─── Dashboard Tab ─── */}
+        {tab === 'dashboard' && (
+          <div className="space-y-5 animate-fade-in">
+            {/* Stat Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 lg:gap-4">
+              {[
+                { label: 'Total PnL', value: fmtUsd(analytics?.totalPnl || 0), color: (analytics?.totalPnl || 0) >= 0 ? 'text-neon-green' : 'text-neon-red', glow: (analytics?.totalPnl || 0) >= 0 ? 'shadow-glow-green' : 'shadow-glow-red', icon: icons.arrowUp, sub: `Realized: ${fmtUsd(analytics?.realizedPnl || 0)}` },
+                { label: 'Win Rate', value: fmtPct(analytics?.winRate || 0), color: (analytics?.winRate || 0) > 0.6 ? 'text-neon-green' : 'text-neon-yellow', icon: icons.target, sub: `${analytics?.winningTrades || 0}W / ${analytics?.losingTrades || 0}L` },
+                { label: 'Sharpe Ratio', value: fmt(analytics?.sharpeRatio || 0), color: 'text-neon-blue', icon: icons.chart, sub: `Drawdown: $${fmt(analytics?.maxDrawdown || 0)}` },
+                { label: 'Open Positions', value: String(positions.length), color: 'text-brand-400', icon: icons.wallet, sub: `Exposure: $${fmt(status?.totalExposure || 0)}` },
+              ].map((s, i) => (
+                <div key={i} className={`stat-card glass rounded-2xl p-4 lg:p-5 ${i === 0 ? s.glow : ''}`}>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">{s.label}</span>
+                    <div className="w-8 h-8 rounded-lg bg-surface-300/50 flex items-center justify-center">
+                      <Icon d={s.icon} className={`w-4 h-4 ${s.color}`} />
+                    </div>
+                  </div>
+                  <p className={`text-2xl lg:text-3xl font-bold ${s.color}`}>{s.value}</p>
+                  <p className="text-[11px] text-slate-500 mt-1">{s.sub}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Two Column Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+              {/* Positions (3 col) */}
+              <div className="lg:col-span-3 glass rounded-2xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-surface-400/50 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-brand-400" />
+                    <h3 className="text-sm font-semibold">Open Positions</h3>
+                  </div>
+                  <span className="text-xs text-slate-500">{positions.length} active</span>
+                </div>
+                {positions.length === 0 ? (
+                  <div className="p-12 text-center">
+                    <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-surface-300/50 flex items-center justify-center">
+                      <Icon d={icons.target} className="w-6 h-6 text-slate-600" />
+                    </div>
+                    <p className="text-sm text-slate-500">No open positions</p>
+                    <p className="text-xs text-slate-600 mt-1">The bot will open positions when consensus is reached</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-surface-400/30">
+                    {positions.map((pos, i) => (
+                      <div key={pos.id} className="table-row px-5 py-3 flex items-center gap-4" style={{ animationDelay: `${i * 50}ms` }}>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold ${
+                          pos.signal === 'BUY_YES' ? 'bg-neon-green/10 text-neon-green' : 'bg-neon-red/10 text-neon-red'
+                        }`}>
+                          {pos.signal === 'BUY_YES' ? 'YES' : 'NO'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{pos.question}</p>
+                          <div className="flex items-center gap-3 mt-0.5 text-[11px] text-slate-500">
+                            <span>${fmt(pos.entryPrice, 3)} → ${fmt(pos.currentPrice, 3)}</span>
+                            <span className="px-1.5 py-0.5 rounded bg-surface-300/50 text-slate-400">{pos.category}</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-sm font-bold ${pos.unrealizedPnl >= 0 ? 'text-neon-green' : 'text-neon-red'}`}>
+                            {fmtUsd(pos.unrealizedPnl)}
+                          </p>
+                          <p className="text-[10px] text-slate-500">{timeAgo(pos.openedAt)}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Agents (2 col) */}
+              <div className="lg:col-span-2 glass rounded-2xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-surface-400/50 flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-neon-purple" />
+                  <h3 className="text-sm font-semibold">Agent Performance</h3>
+                </div>
+                <div className="p-3 space-y-2">
+                  {(analytics?.agentStats || [
+                    { name: 'scout', level: 1, avgConfidence: 0, accuracy: 0, brierScore: 0.25, totalSignals: 0, contributionScore: 0 },
+                    { name: 'analyst', level: 2, avgConfidence: 0, accuracy: 0, brierScore: 0.25, totalSignals: 0, contributionScore: 0 },
+                    { name: 'strategist', level: 3, avgConfidence: 0, accuracy: 0, brierScore: 0.25, totalSignals: 0, contributionScore: 0 },
+                    { name: 'quant', level: 4, avgConfidence: 0, accuracy: 0, brierScore: 0.25, totalSignals: 0, contributionScore: 0 },
+                    { name: 'oracle', level: 5, avgConfidence: 0, accuracy: 0, brierScore: 0.25, totalSignals: 0, contributionScore: 0 },
+                  ]).map((agent) => {
+                    const color = AGENT_COLORS[agent.name] || '#6366f1';
                     return (
-                      <tr key={pos.id} className="border-b border-terminal-border/50 hover:bg-terminal-border/20">
-                        <td className="px-4 py-2 max-w-[300px] truncate">{pos.question}</td>
-                        <td className="px-2 py-2 text-center">
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] border ${badge.bg} ${badge.text}`}>
-                            {pos.signal}
+                      <div key={agent.name} className="p-3 rounded-xl bg-surface-100/50 border border-surface-400/30 hover:border-surface-400/60 transition-colors">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2.5">
+                            <span className="text-lg">{AGENT_ICONS[agent.name]}</span>
+                            <div>
+                              <span className="text-xs font-semibold">{AGENT_LABELS[agent.name]}</span>
+                              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full font-bold" style={{ color, backgroundColor: `${color}15`, border: `1px solid ${color}30` }}>
+                                L{agent.level}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="text-[10px] text-slate-500">{agent.totalSignals} signals</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-2 bg-surface-300/50 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-700"
+                              style={{
+                                width: `${Math.max(2, agent.avgConfidence * 100)}%`,
+                                background: `linear-gradient(90deg, ${color}88, ${color})`,
+                                boxShadow: `0 0 8px ${color}40`,
+                              }}
+                            />
+                          </div>
+                          <span className="text-[10px] font-mono text-slate-400 w-10 text-right">
+                            {fmtPct(agent.avgConfidence)}
                           </span>
-                        </td>
-                        <td className="px-2 py-2 text-right">${pos.entryPrice.toFixed(3)}</td>
-                        <td className="px-2 py-2 text-right">${pos.currentPrice.toFixed(3)}</td>
-                        <td className="px-2 py-2 text-right">{pos.size.toFixed(1)}</td>
-                        <td className={`px-4 py-2 text-right font-semibold ${pnlColor(pos.unrealizedPnl)}`}>
-                          {formatPnl(pos.unrealizedPnl)}
-                        </td>
-                      </tr>
+                        </div>
+                        <div className="flex justify-between mt-2 text-[10px] text-slate-500">
+                          <span>Accuracy: <strong className="text-slate-400">{fmtPct(agent.accuracy)}</strong></span>
+                          <span>Brier: <strong className="text-slate-400">{fmt(agent.brierScore, 3)}</strong></span>
+                        </div>
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-
-        {/* Agent Signals Panel */}
-        <div className="bg-terminal-surface border border-terminal-border rounded-lg">
-          <div className="px-4 py-3 border-b border-terminal-border flex items-center gap-2">
-            <Zap className="w-4 h-4 text-terminal-purple" />
-            <h2 className="text-sm font-semibold">Agent Signals</h2>
-          </div>
-          <div className="p-3 space-y-2">
-            {(analytics?.agentStats || [
-              { name: 'scout', level: 1, avgConfidence: 0, accuracy: 0, brierScore: 0.25, totalSignals: 0, contributionScore: 0 },
-              { name: 'analyst', level: 2, avgConfidence: 0, accuracy: 0, brierScore: 0.25, totalSignals: 0, contributionScore: 0 },
-              { name: 'strategist', level: 3, avgConfidence: 0, accuracy: 0, brierScore: 0.25, totalSignals: 0, contributionScore: 0 },
-              { name: 'quant', level: 4, avgConfidence: 0, accuracy: 0, brierScore: 0.25, totalSignals: 0, contributionScore: 0 },
-              { name: 'oracle', level: 5, avgConfidence: 0, accuracy: 0, brierScore: 0.25, totalSignals: 0, contributionScore: 0 },
-            ]).map((agent) => (
-              <div key={agent.name} className="p-2 rounded border border-terminal-border/50 bg-terminal-bg/50">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-terminal-purple">L{agent.level}</span>
-                    <span className="text-xs font-semibold capitalize">{agent.name}</span>
-                  </div>
-                  <span className="text-[10px] text-terminal-muted">{agent.totalSignals} signals</span>
-                </div>
-                <div className="flex items-center gap-2 mt-1">
-                  <div className="flex-1 h-1.5 bg-terminal-border rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${confidenceBar(agent.avgConfidence)}`}
-                      style={{ width: `${agent.avgConfidence * 100}%` }}
-                    />
-                  </div>
-                  <span className="text-[10px] text-terminal-muted w-8">
-                    {(agent.avgConfidence * 100).toFixed(0)}%
-                  </span>
-                </div>
-                <div className="flex justify-between mt-1 text-[10px] text-terminal-muted">
-                  <span>Acc: {(agent.accuracy * 100).toFixed(0)}%</span>
-                  <span>Brier: {agent.brierScore.toFixed(3)}</span>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
 
-        {/* Decision Log */}
-        <div className="lg:col-span-2 bg-terminal-surface border border-terminal-border rounded-lg">
-          <div className="px-4 py-3 border-b border-terminal-border flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-terminal-yellow" />
-            <h2 className="text-sm font-semibold">Decision Log</h2>
-          </div>
-          <div className="max-h-[300px] overflow-y-auto">
-            {decisions.length === 0 ? (
-              <div className="p-8 text-center text-terminal-muted text-sm">No decisions yet — start the bot</div>
-            ) : (
-              <div className="divide-y divide-terminal-border/50">
-                {decisions.map((d, i) => (
-                  <div key={i} className="px-4 py-2 flex items-center gap-3 text-xs hover:bg-terminal-border/20">
-                    {d.shouldTrade ? (
-                      <CheckCircle className="w-3.5 h-3.5 text-terminal-green flex-shrink-0" />
-                    ) : (
-                      <AlertCircle className="w-3.5 h-3.5 text-terminal-muted flex-shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="truncate">{d.market}</p>
-                      <p className="text-terminal-muted text-[10px]">
-                        {d.signal} | Conf: {(d.confidence * 100).toFixed(0)}% | Edge: {(d.edge * 100).toFixed(1)}c | Agree: {d.agreeCount}/5
-                      </p>
+            {/* Recent Decisions */}
+            <div className="glass rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-surface-400/50 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full bg-neon-yellow" />
+                  <h3 className="text-sm font-semibold">Recent Decisions</h3>
+                </div>
+                <button onClick={() => setTab('log')} className="text-xs text-brand-400 hover:text-brand-300 font-medium">
+                  View All →
+                </button>
+              </div>
+              <div className="divide-y divide-surface-400/20 max-h-[280px] overflow-y-auto">
+                {decisions.length === 0 ? (
+                  <div className="p-8 text-center text-sm text-slate-500">No decisions yet — start the bot to begin analysis</div>
+                ) : decisions.slice(0, 8).map((d, i) => (
+                  <div key={i} className="table-row px-5 py-3 flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                      d.shouldTrade ? 'bg-neon-green/10' : 'bg-surface-300/50'
+                    }`}>
+                      <Icon d={d.shouldTrade ? icons.check : icons.x} className={`w-4 h-4 ${d.shouldTrade ? 'text-neon-green' : 'text-slate-600'}`} />
                     </div>
-                    <span className="text-terminal-muted text-[10px] flex-shrink-0">
-                      {formatTime(d.timestamp)}
-                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium truncate">{d.market}</p>
+                      <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500">
+                        <span className={`font-bold ${d.signal === 'BUY_YES' ? 'text-neon-green' : d.signal === 'BUY_NO' ? 'text-neon-red' : 'text-slate-500'}`}>
+                          {d.signal}
+                        </span>
+                        <span>·</span>
+                        <span>Conf {fmtPct(d.confidence)}</span>
+                        <span>·</span>
+                        <span>Edge {fmt(d.edge * 100, 1)}c</span>
+                        <span>·</span>
+                        <span>{d.agreeCount}/5 agree</span>
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-slate-600 flex-shrink-0">{fmtTime(d.timestamp)}</span>
                   </div>
                 ))}
               </div>
-            )}
-          </div>
-        </div>
+            </div>
 
-        {/* News Feed */}
-        <div className="bg-terminal-surface border border-terminal-border rounded-lg">
-          <div className="px-4 py-3 border-b border-terminal-border flex items-center gap-2">
-            <Newspaper className="w-4 h-4 text-terminal-blue" />
-            <h2 className="text-sm font-semibold">News Feed</h2>
-          </div>
-          <div className="max-h-[300px] overflow-y-auto divide-y divide-terminal-border/50">
-            {news.length === 0 ? (
-              <div className="p-8 text-center text-terminal-muted text-sm">No news cached</div>
-            ) : (
-              news.map((article, i) => (
-                <div key={i} className="px-4 py-2">
-                  <p className="text-xs leading-relaxed">{article.title}</p>
-                  <div className="flex justify-between mt-1 text-[10px] text-terminal-muted">
-                    <span>{article.source}</span>
-                    <span className={
-                      article.sentimentScore > 0.1
-                        ? 'text-terminal-green'
-                        : article.sentimentScore < -0.1
-                          ? 'text-terminal-red'
-                          : ''
-                    }>
-                      {article.sentimentScore >= 0 ? '+' : ''}{article.sentimentScore.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Live Events */}
-        <div className="lg:col-span-3 bg-terminal-surface border border-terminal-border rounded-lg">
-          <div className="px-4 py-3 border-b border-terminal-border flex items-center gap-2">
-            <Activity className="w-4 h-4 text-terminal-green" />
-            <h2 className="text-sm font-semibold">Live Events (SSE)</h2>
-            <span className="text-[10px] text-terminal-muted">Last {events.length} events</span>
-          </div>
-          <div className="max-h-[200px] overflow-y-auto font-mono">
-            {events.length === 0 ? (
-              <div className="p-8 text-center text-terminal-muted text-sm">
-                Waiting for events... {status?.running ? '' : '(start the bot)'}
+            {/* Live Feed */}
+            <div className="glass rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-surface-400/50 flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-neon-green pulse-live" />
+                <h3 className="text-sm font-semibold">Live Event Stream</h3>
+                <span className="text-[10px] text-slate-500 ml-2">{events.length} events</span>
               </div>
-            ) : (
-              events.map((evt, i) => (
-                <div key={i} className="px-4 py-1 text-[11px] border-b border-terminal-border/30 hover:bg-terminal-border/20">
-                  <span className="text-terminal-muted">{formatTime(evt.timestamp)}</span>
-                  {' '}
-                  <span className={
-                    evt.type === 'trade' ? 'text-terminal-green font-bold' :
-                    evt.type === 'error' ? 'text-terminal-red' :
-                    evt.type === 'consensus' ? 'text-terminal-yellow' :
-                    'text-terminal-blue'
-                  }>
-                    [{evt.type.toUpperCase()}]
-                  </span>
-                  {' '}
-                  <span className="text-terminal-text">
-                    {typeof evt.data === 'string' ? evt.data : JSON.stringify(evt.data).slice(0, 120)}
-                  </span>
-                </div>
-              ))
-            )}
+              <div className="max-h-[200px] overflow-y-auto font-mono text-[11px]">
+                {events.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-slate-500">
+                    {status?.running ? 'Waiting for events...' : 'Start the bot to see live events'}
+                  </div>
+                ) : events.slice(0, 30).map((evt, i) => {
+                  const typeColors: Record<string, string> = {
+                    trade: 'text-neon-green', error: 'text-neon-red', consensus: 'text-neon-yellow',
+                    signal: 'text-neon-blue', tick: 'text-brand-400', position_update: 'text-neon-cyan',
+                    bot_status: 'text-neon-purple', connected: 'text-slate-500',
+                  };
+                  return (
+                    <div key={i} className="px-5 py-1.5 flex items-center gap-3 hover:bg-surface-300/20 border-b border-surface-400/10">
+                      <span className="text-slate-600 w-16 flex-shrink-0">{fmtTime(evt.timestamp)}</span>
+                      <span className={`font-bold w-20 flex-shrink-0 uppercase ${typeColors[evt.type] || 'text-slate-500'}`}>{evt.type}</span>
+                      <span className="text-slate-400 truncate">{typeof evt.data === 'string' ? evt.data : JSON.stringify(evt.data).slice(0, 150)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        )}
 
-      {/* Footer */}
-      <footer className="mt-6 pt-4 border-t border-terminal-border text-center text-[10px] text-terminal-muted">
-        Polymarket AI Trading Bot v1.0.0 | 5 Agents | 8-Rule Consensus | {status?.dryRun ? 'DRY RUN MODE' : 'LIVE MODE'}
-      </footer>
+        {/* ─── Positions Tab ─── */}
+        {tab === 'positions' && (
+          <div className="space-y-4 animate-fade-in">
+            <div className="grid grid-cols-3 gap-4">
+              {[
+                { label: 'Unrealized PnL', value: fmtUsd(analytics?.unrealizedPnl || 0), color: (analytics?.unrealizedPnl || 0) >= 0 ? 'text-neon-green' : 'text-neon-red' },
+                { label: 'Total Exposure', value: `$${fmt(status?.totalExposure || 0)}`, color: 'text-brand-400' },
+                { label: 'Avg Hold Time', value: `${fmt(analytics?.avgHoldHours || 0, 1)}h`, color: 'text-neon-blue' },
+              ].map((s, i) => (
+                <div key={i} className="stat-card glass rounded-2xl p-5">
+                  <p className="text-xs text-slate-500 uppercase tracking-wider">{s.label}</p>
+                  <p className={`text-2xl font-bold mt-2 ${s.color}`}>{s.value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="glass rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-surface-400/50">
+                <h3 className="text-sm font-semibold">All Open Positions</h3>
+              </div>
+              {positions.length === 0 ? (
+                <div className="p-16 text-center">
+                  <span className="text-4xl">📭</span>
+                  <p className="text-sm text-slate-500 mt-3">No open positions yet</p>
+                </div>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-slate-500 border-b border-surface-400/30">
+                      {['Market', 'Signal', 'Entry', 'Current', 'Size', 'PnL', 'Confidence', 'Age'].map(h => (
+                        <th key={h} className="text-left px-5 py-3 font-medium">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-surface-400/20">
+                    {positions.map((pos) => (
+                      <tr key={pos.id} className="table-row">
+                        <td className="px-5 py-3 max-w-[300px] truncate font-medium">{pos.question}</td>
+                        <td className="px-5 py-3">
+                          <span className={`px-2 py-1 rounded-lg text-[10px] font-bold ${
+                            pos.signal === 'BUY_YES' ? 'bg-neon-green/10 text-neon-green border border-neon-green/20' : 'bg-neon-red/10 text-neon-red border border-neon-red/20'
+                          }`}>{pos.signal}</span>
+                        </td>
+                        <td className="px-5 py-3 font-mono">${fmt(pos.entryPrice, 3)}</td>
+                        <td className="px-5 py-3 font-mono">${fmt(pos.currentPrice, 3)}</td>
+                        <td className="px-5 py-3 font-mono">{fmt(pos.size, 1)}</td>
+                        <td className={`px-5 py-3 font-bold ${pos.unrealizedPnl >= 0 ? 'text-neon-green' : 'text-neon-red'}`}>{fmtUsd(pos.unrealizedPnl)}</td>
+                        <td className="px-5 py-3">{fmtPct(pos.consensusConfidence)}</td>
+                        <td className="px-5 py-3 text-slate-500">{timeAgo(pos.openedAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ─── Agents Tab ─── */}
+        {tab === 'agents' && (
+          <div className="space-y-4 animate-fade-in">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {(analytics?.agentStats || [
+                { name: 'scout', level: 1, avgConfidence: 0, accuracy: 0, brierScore: 0.25, totalSignals: 0, contributionScore: 0, buyYesCount: 0, buyNoCount: 0, holdCount: 0 },
+                { name: 'analyst', level: 2, avgConfidence: 0, accuracy: 0, brierScore: 0.25, totalSignals: 0, contributionScore: 0, buyYesCount: 0, buyNoCount: 0, holdCount: 0 },
+                { name: 'strategist', level: 3, avgConfidence: 0, accuracy: 0, brierScore: 0.25, totalSignals: 0, contributionScore: 0, buyYesCount: 0, buyNoCount: 0, holdCount: 0 },
+                { name: 'quant', level: 4, avgConfidence: 0, accuracy: 0, brierScore: 0.25, totalSignals: 0, contributionScore: 0, buyYesCount: 0, buyNoCount: 0, holdCount: 0 },
+                { name: 'oracle', level: 5, avgConfidence: 0, accuracy: 0, brierScore: 0.25, totalSignals: 0, contributionScore: 0, buyYesCount: 0, buyNoCount: 0, holdCount: 0 },
+              ] as any[]).map((agent) => {
+                const color = AGENT_COLORS[agent.name] || '#6366f1';
+                const descriptions: Record<string, string> = {
+                  scout: 'Keyword matching between market titles and news headlines. Fast, low-confidence baseline.',
+                  analyst: 'Combines news sentiment with price momentum. Identifies divergence opportunities.',
+                  strategist: 'Contrarian orderbook analysis with Kelly criterion position sizing.',
+                  quant: 'Multi-factor Bayesian model. Tracks Brier score and adjusts per category.',
+                  oracle: 'Claude AI reasoning engine. Ensemble with all other agents. Final veto power.',
+                };
+                return (
+                  <div key={agent.name} className="glass rounded-2xl p-5 hover:shadow-glow-sm transition-shadow glow-border">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{ background: `${color}15` }}>
+                        {AGENT_ICONS[agent.name]}
+                      </div>
+                      <div>
+                        <h3 className="font-bold">{AGENT_LABELS[agent.name]}</h3>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold" style={{ color, backgroundColor: `${color}15`, border: `1px solid ${color}30` }}>
+                          Level {agent.level}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-500 leading-relaxed mb-4">{descriptions[agent.name]}</p>
+                    <div className="space-y-3">
+                      {[
+                        { label: 'Confidence', value: agent.avgConfidence },
+                        { label: 'Accuracy', value: agent.accuracy },
+                      ].map((bar) => (
+                        <div key={bar.label}>
+                          <div className="flex justify-between text-[10px] mb-1">
+                            <span className="text-slate-500">{bar.label}</span>
+                            <span className="font-mono text-slate-400">{fmtPct(bar.value)}</span>
+                          </div>
+                          <div className="h-2 bg-surface-300/50 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full" style={{ width: `${Math.max(2, bar.value * 100)}%`, background: `linear-gradient(90deg, ${color}88, ${color})`, boxShadow: `0 0 8px ${color}40` }} />
+                          </div>
+                        </div>
+                      ))}
+                      <div className="grid grid-cols-3 gap-2 pt-2 border-t border-surface-400/30">
+                        <div className="text-center">
+                          <p className="text-lg font-bold text-slate-300">{agent.totalSignals}</p>
+                          <p className="text-[9px] text-slate-500">Signals</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-lg font-bold" style={{ color }}>{fmt(agent.brierScore, 3)}</p>
+                          <p className="text-[9px] text-slate-500">Brier</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-lg font-bold text-slate-300">{fmt(agent.contributionScore, 1)}</p>
+                          <p className="text-[9px] text-slate-500">Score</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ─── News Tab ─── */}
+        {tab === 'news' && (
+          <div className="space-y-4 animate-fade-in">
+            <div className="glass rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-surface-400/50 flex items-center gap-2">
+                <h3 className="text-sm font-semibold">News Feed</h3>
+                <span className="text-xs text-slate-500">({news.length} articles)</span>
+              </div>
+              {news.length === 0 ? (
+                <div className="p-16 text-center">
+                  <span className="text-4xl">📰</span>
+                  <p className="text-sm text-slate-500 mt-3">No news articles cached yet</p>
+                  <p className="text-xs text-slate-600 mt-1">Articles will appear once the bot starts analyzing markets</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-surface-400/20">
+                  {news.map((article, i) => {
+                    const sent = article.sentimentScore;
+                    const sentColor = sent > 0.1 ? 'text-neon-green' : sent < -0.1 ? 'text-neon-red' : 'text-slate-500';
+                    const sentBg = sent > 0.1 ? 'bg-neon-green/10 border-neon-green/20' : sent < -0.1 ? 'bg-neon-red/10 border-neon-red/20' : 'bg-surface-300/50 border-surface-400/30';
+                    return (
+                      <div key={i} className="table-row px-5 py-4 flex items-start gap-4">
+                        <div className={`mt-0.5 px-2 py-1 rounded-lg border text-[10px] font-bold flex-shrink-0 ${sentBg} ${sentColor}`}>
+                          {sent >= 0 ? '+' : ''}{fmt(sent)}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium leading-relaxed">{article.title}</p>
+                          <div className="flex items-center gap-2 mt-1.5 text-[10px] text-slate-500">
+                            <span className="font-medium">{article.source}</span>
+                            {article.publishedAt && <>
+                              <span>·</span>
+                              <span>{timeAgo(article.publishedAt)}</span>
+                            </>}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ─── Log Tab ─── */}
+        {tab === 'log' && (
+          <div className="space-y-4 animate-fade-in">
+            <div className="glass rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-surface-400/50 flex items-center gap-2">
+                <h3 className="text-sm font-semibold">Decision Log</h3>
+                <span className="text-xs text-slate-500">{decisions.length} entries</span>
+              </div>
+              {decisions.length === 0 ? (
+                <div className="p-16 text-center">
+                  <span className="text-4xl">📋</span>
+                  <p className="text-sm text-slate-500 mt-3">No decisions recorded yet</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-surface-400/20">
+                  {decisions.map((d, i) => (
+                    <div key={i} className="table-row px-5 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                          d.shouldTrade ? 'bg-neon-green/10' : 'bg-surface-300/50'
+                        }`}>
+                          <Icon d={d.shouldTrade ? icons.check : icons.x} className={`w-4 h-4 ${d.shouldTrade ? 'text-neon-green' : 'text-slate-600'}`} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{d.market}</p>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
+                            <span className={`text-[11px] font-bold ${d.signal === 'BUY_YES' ? 'text-neon-green' : d.signal === 'BUY_NO' ? 'text-neon-red' : 'text-slate-500'}`}>
+                              {d.signal}
+                            </span>
+                            <span className="text-[10px] text-slate-500 font-mono">Conf: {fmtPct(d.confidence)}</span>
+                            <span className="text-[10px] text-slate-500 font-mono">Edge: {fmt(d.edge * 100, 1)}c</span>
+                            <span className="text-[10px] text-slate-500 font-mono">Agree: {d.agreeCount}/5</span>
+                            {d.shouldTrade && <span className="text-[10px] px-1.5 py-0.5 rounded bg-neon-green/10 text-neon-green font-bold">TRADED</span>}
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-slate-600 flex-shrink-0 font-mono">{fmtTime(d.timestamp)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </main>
     </div>
   );
 }
