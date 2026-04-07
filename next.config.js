@@ -1,10 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: [
-    '@anthropic-ai/sdk',
-    '@polymarket/clob-client',
-    'viem',
-  ],
+  experimental: {
+    serverComponentsExternalPackages: [
+      '@anthropic-ai/sdk',
+      '@polymarket/clob-client',
+      'viem',
+      'ethers',
+    ],
+  },
   async headers() {
     return [
       {

@@ -17,27 +17,38 @@ import { v4 as uuidv4 } from 'uuid';
 // ============================================================
 
 // --- Gamma API response shape (market discovery) ---
+// Gamma API returns camelCase fields, NOT snake_case
 interface GammaMarketResponse {
-  condition_id: string;
-  question_id: string;
+  conditionId: string;
+  questionID?: string;
   question: string;
   description: string;
   slug?: string;
-  end_date_iso: string;
-  volume?: string;
-  liquidity?: string;
-  outcomes?: string;
-  outcome_prices?: string;
+  endDate?: string;
+  endDateIso?: string;
+  volume?: number | string;
+  volumeNum?: number;
+  liquidity?: number | string;
+  liquidityNum?: number;
+  outcomes?: string; // JSON string: '["Yes","No"]'
+  outcomePrices?: string; // JSON string: '["0.55","0.45"]'
+  clobTokenIds?: string; // JSON string: '["tokenId1","tokenId2"]'
   tokens?: Array<{
     token_id: string;
     outcome: string;
     price: number;
     winner: boolean;
   }>;
-  tags?: Array<{ label: string }>;
+  tags?: Array<{ label: string }> | string[];
   active: boolean;
   closed: boolean;
   category?: string;
+  bestBid?: number;
+  bestAsk?: number;
+  spread?: number;
+  lastTradePrice?: number;
+  volume24hr?: number;
+  events?: Array<{ slug: string; title: string }>;
 }
 
 // --- Retry with exponential backoff ---
@@ -510,41 +521,70 @@ export class PolymarketClient {
   // ============================================================
 
   private mapMarket(m: GammaMarketResponse): PolyMarket {
-    const outcomes = m.outcomes
-      ? (typeof m.outcomes === 'string' ? JSON.parse(m.outcomes) : m.outcomes)
-      : ['Yes', 'No'];
-    const outcomePrices = m.outcome_prices
-      ? (typeof m.outcome_prices === 'string' ? JSON.parse(m.outcome_prices) : m.outcome_prices).map(Number)
-      : [0.5, 0.5];
-    const tokens: PolyToken[] = m.tokens
-      ? m.tokens.map((t) => ({
-          tokenId: t.token_id,
-          outcome: t.outcome,
-          price: t.price,
-          winner: t.winner,
-        }))
-      : outcomes.map((o: string, i: number) => ({
-          tokenId: '',
+    // Parse outcomes from JSON string
+    let outcomes: string[] = ['Yes', 'No'];
+    try {
+      if (m.outcomes) outcomes = typeof m.outcomes === 'string' ? JSON.parse(m.outcomes) : m.outcomes;
+    } catch {}
+
+    // Parse outcome prices from JSON string (Gamma returns "outcomePrices" camelCase)
+    let outcomePrices: number[] = [0.5, 0.5];
+    try {
+      if (m.outcomePrices) {
+        const raw = typeof m.outcomePrices === 'string' ? JSON.parse(m.outcomePrices) : m.outcomePrices;
+        outcomePrices = raw.map(Number);
+      }
+    } catch {}
+
+    // Parse clobTokenIds from JSON string
+    let clobTokenIds: string[] = [];
+    try {
+      if (m.clobTokenIds) {
+        clobTokenIds = typeof m.clobTokenIds === 'string' ? JSON.parse(m.clobTokenIds) : m.clobTokenIds;
+      }
+    } catch {}
+
+    // Build tokens array — prefer clobTokenIds (actual trading IDs)
+    const tokens: PolyToken[] = clobTokenIds.length > 0
+      ? outcomes.map((o: string, i: number) => ({
+          tokenId: clobTokenIds[i] || '',
           outcome: o,
           price: outcomePrices[i] || 0.5,
           winner: false,
-        }));
+        }))
+      : m.tokens
+        ? m.tokens.map((t) => ({
+            tokenId: t.token_id,
+            outcome: t.outcome,
+            price: t.price,
+            winner: t.winner,
+          }))
+        : outcomes.map((o: string, i: number) => ({
+            tokenId: '',
+            outcome: o,
+            price: outcomePrices[i] || 0.5,
+            winner: false,
+          }));
 
-    const tags = m.tags
-      ? m.tags.map((t) => t.label?.toLowerCase?.() || String(t).toLowerCase())
+    // Parse tags
+    const tags: string[] = m.tags
+      ? (m.tags as any[]).map((t: any) => (typeof t === 'string' ? t : t.label || '').toLowerCase()).filter(Boolean)
       : [];
+
     const yesPrice = outcomePrices[0] || 0.5;
     const noPrice = outcomePrices[1] || 0.5;
+    const vol = m.volumeNum || (typeof m.volume === 'number' ? m.volume : parseFloat(String(m.volume || '0')));
+    const liq = m.liquidityNum || (typeof m.liquidity === 'number' ? m.liquidity : parseFloat(String(m.liquidity || '0')));
 
     return {
-      conditionId: m.condition_id || '',
-      questionId: m.question_id || '',
+      conditionId: m.conditionId || '',
+      questionId: m.questionID || '',
       question: m.question || '',
       description: m.description || '',
       slug: m.slug || '',
-      endDate: m.end_date_iso || '',
-      volume: parseFloat(m.volume || '0'),
-      liquidity: parseFloat(m.liquidity || '0'),
+      endDate: m.endDateIso || m.endDate || '',
+      volume: vol,
+      liquidity: liq,
       outcomes,
       outcomePrices,
       tags,
@@ -552,8 +592,8 @@ export class PolymarketClient {
       closed: m.closed,
       tokens,
       recentTradeCount: 100,
-      spread: Math.abs(yesPrice + noPrice - 1),
-      category: m.category || tags[0] || 'general',
+      spread: m.spread ?? Math.abs(yesPrice + noPrice - 1),
+      category: m.category || (m.events?.[0]?.slug?.split('-')[0]) || tags[0] || 'general',
     };
   }
 

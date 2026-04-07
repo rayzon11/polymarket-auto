@@ -11,7 +11,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ count: articles.length, articles });
     }
 
-    const articles = fetcher.getAllCached();
+    // If cache is empty, fetch fresh news across categories
+    let articles = fetcher.getAllCached();
+    if (articles.length === 0) {
+      articles = await fetcher.fetchAll();
+    }
+
     return NextResponse.json({ count: articles.length, articles });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

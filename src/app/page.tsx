@@ -107,6 +107,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const eventsRef = useRef<SSEEvent[]>([]);
+  const [markets, setMarkets] = useState<any[]>([]);
   // God-Mode state
   const [whaleAlerts, setWhaleAlerts] = useState<any[]>([]);
   const [arbOpps, setArbOpps] = useState<any[]>([]);
@@ -116,18 +117,20 @@ export default function Dashboard() {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [s, p, a, d, n] = await Promise.allSettled([
+      const [s, p, a, d, n, mk] = await Promise.allSettled([
         fetch('/api/bot/status').then(r => r.json()),
         fetch('/api/positions').then(r => r.json()),
         fetch('/api/analytics').then(r => r.json()),
         fetch('/api/decisions?limit=30').then(r => r.json()),
         fetch('/api/news').then(r => r.json()),
+        fetch('/api/markets').then(r => r.json()),
       ]);
       if (s.status === 'fulfilled') setStatus(s.value);
       if (p.status === 'fulfilled') setPositions(p.value.positions || []);
       if (a.status === 'fulfilled') setAnalytics(a.value);
       if (d.status === 'fulfilled') setDecisions(d.value.decisions || []);
-      if (n.status === 'fulfilled') setNews((n.value.articles || []).slice(0, 20));
+      if (n.status === 'fulfilled') setNews((n.value.articles || []).slice(0, 50));
+      if (mk.status === 'fulfilled') setMarkets(mk.value.markets || []);
       // God-mode data
       const [wh, ar, ri, wa] = await Promise.allSettled([
         fetch('/api/godmode/whales?action=alerts&limit=20').then(r => r.json()),
@@ -308,6 +311,59 @@ export default function Dashboard() {
                   <p className="text-[11px] text-slate-500 mt-1">{s.sub}</p>
                 </div>
               ))}
+            </div>
+
+            {/* Live Markets from Polymarket */}
+            <div className="glass rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-surface-400/50 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-neon-green pulse-live" />
+                  <h3 className="text-sm font-semibold">Live Polymarket Bets</h3>
+                </div>
+                <span className="text-xs text-slate-500">{markets.length} markets</span>
+              </div>
+              {markets.length === 0 ? (
+                <div className="p-10 text-center">
+                  <p className="text-sm text-slate-500">Loading markets from Polymarket...</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-surface-400/20 max-h-[400px] overflow-auto">
+                  {markets.slice(0, 25).map((m: any, i: number) => {
+                    const yesPrice = m.outcomePrices?.[0] || 0.5;
+                    const noPrice = m.outcomePrices?.[1] || 0.5;
+                    return (
+                      <div key={i} className="table-row px-5 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex flex-col items-center gap-1 w-16 flex-shrink-0">
+                            <span className={`text-sm font-bold ${yesPrice >= 0.5 ? 'text-neon-green' : 'text-neon-red'}`}>
+                              {fmt(yesPrice * 100, 0)}%
+                            </span>
+                            <span className="text-[9px] text-slate-600">YES</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{m.question}</p>
+                            <div className="flex items-center gap-3 mt-1">
+                              <span className="text-[10px] text-slate-500">Vol: ${m.volume >= 1000000 ? fmt(m.volume / 1000000, 1) + 'M' : m.volume >= 1000 ? fmt(m.volume / 1000, 0) + 'K' : fmt(m.volume, 0)}</span>
+                              <span className="text-[10px] text-slate-500">Liq: ${m.liquidity >= 1000 ? fmt(m.liquidity / 1000, 0) + 'K' : fmt(m.liquidity, 0)}</span>
+                              {m.passesFilter && <span className="text-[9px] px-1.5 py-0.5 rounded bg-neon-green/10 text-neon-green font-bold">TRADEABLE</span>}
+                              {m.category && m.category !== 'general' && <span className="text-[9px] px-1.5 py-0.5 rounded bg-surface-300/50 text-slate-500">{m.category}</span>}
+                            </div>
+                          </div>
+                          <div className="w-20 flex-shrink-0">
+                            <div className="w-full h-2 rounded-full bg-surface-300/50 overflow-hidden">
+                              <div className="h-full rounded-full bg-gradient-to-r from-neon-green to-neon-blue" style={{ width: `${yesPrice * 100}%` }} />
+                            </div>
+                            <div className="flex justify-between mt-1">
+                              <span className="text-[9px] text-neon-green">{fmt(yesPrice * 100, 0)}%</span>
+                              <span className="text-[9px] text-neon-red">{fmt(noPrice * 100, 0)}%</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Two Column Grid */}

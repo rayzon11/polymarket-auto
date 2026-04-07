@@ -9,14 +9,21 @@ export async function GET() {
 
     const orderbookMap = new Map();
     const filtered = filterAndRankMarkets(markets, orderbookMap);
-    const passing = filtered.filter((r) => r.passed);
+    const tradeable = filtered.filter((r) => r.passed);
 
+    // Return ALL markets (for display) + which ones pass filter (for trading)
     return NextResponse.json({
-      count: passing.length,
-      markets: passing.map((r) => ({
-        ...r.market,
-        filterScore: r.score,
-      })),
+      count: markets.length,
+      tradeableCount: tradeable.length,
+      markets: markets.map((m) => {
+        const f = filtered.find((r) => r.market.conditionId === m.conditionId);
+        return {
+          ...m,
+          filterScore: f?.score || 0,
+          passesFilter: f?.passed || false,
+          failedRules: f?.failedRules || [],
+        };
+      }),
     });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
