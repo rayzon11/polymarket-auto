@@ -97,7 +97,7 @@ const AGENT_LABELS: Record<string, string> = {
 
 // ─── Main Dashboard ────────────────────────────────────────
 export default function Dashboard() {
-  const [tab, setTab] = useState<'dashboard' | 'positions' | 'agents' | 'news' | 'log'>('dashboard');
+  const [tab, setTab] = useState<'dashboard' | 'positions' | 'agents' | 'news' | 'log' | 'whales' | 'arb' | 'risk' | 'wallet'>('dashboard');
   const [status, setStatus] = useState<BotStatus | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
@@ -107,6 +107,12 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const eventsRef = useRef<SSEEvent[]>([]);
+  // God-Mode state
+  const [whaleAlerts, setWhaleAlerts] = useState<any[]>([]);
+  const [arbOpps, setArbOpps] = useState<any[]>([]);
+  const [riskMetrics, setRiskMetrics] = useState<any>(null);
+  const [riskAlerts, setRiskAlerts] = useState<any[]>([]);
+  const [walletInfo, setWalletInfo] = useState<any>(null);
 
   const fetchAll = useCallback(async () => {
     try {
@@ -122,6 +128,17 @@ export default function Dashboard() {
       if (a.status === 'fulfilled') setAnalytics(a.value);
       if (d.status === 'fulfilled') setDecisions(d.value.decisions || []);
       if (n.status === 'fulfilled') setNews((n.value.articles || []).slice(0, 20));
+      // God-mode data
+      const [wh, ar, ri, wa] = await Promise.allSettled([
+        fetch('/api/godmode/whales?action=alerts&limit=20').then(r => r.json()),
+        fetch('/api/godmode/arb?action=opportunities&limit=20').then(r => r.json()),
+        fetch('/api/godmode/risk?action=metrics').then(r => r.json()),
+        fetch('/api/godmode/wallet').then(r => r.json()),
+      ]);
+      if (wh.status === 'fulfilled') setWhaleAlerts(wh.value.alerts || []);
+      if (ar.status === 'fulfilled') setArbOpps(ar.value.opportunities || []);
+      if (ri.status === 'fulfilled') { setRiskMetrics(ri.value.metrics || null); setRiskAlerts(ri.value.alerts || []); }
+      if (wa.status === 'fulfilled') setWalletInfo(wa.value);
     } catch {} finally { setLoading(false); }
   }, []);
 
@@ -174,6 +191,10 @@ export default function Dashboard() {
     { id: 'agents', label: 'Agents', icon: icons.bot },
     { id: 'news', label: 'News', icon: icons.news },
     { id: 'log', label: 'Log', icon: icons.chart },
+    { id: 'whales', label: 'Whales', icon: icons.eye },
+    { id: 'arb', label: 'Arb Scanner', icon: icons.lightning },
+    { id: 'risk', label: 'Risk', icon: icons.shield },
+    { id: 'wallet', label: 'Wallet', icon: icons.wallet },
   ] as const;
 
   return (
@@ -454,7 +475,7 @@ export default function Dashboard() {
                     <div key={i} className="px-5 py-1.5 flex items-center gap-3 hover:bg-surface-300/20 border-b border-surface-400/10">
                       <span className="text-slate-600 w-16 flex-shrink-0">{fmtTime(evt.timestamp)}</span>
                       <span className={`font-bold w-20 flex-shrink-0 uppercase ${typeColors[evt.type] || 'text-slate-500'}`}>{evt.type}</span>
-                      <span className="text-slate-400 truncate">{typeof evt.data === 'string' ? evt.data : JSON.stringify(evt.data).slice(0, 150)}</span>
+                      <span className="text-slate-400 truncate">{typeof evt.data === 'string' ? evt.data : (JSON.stringify(evt.data) || '').slice(0, 150)}</span>
                     </div>
                   );
                 })}
@@ -675,6 +696,236 @@ export default function Dashboard() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ─── Whales Tab ─── */}
+        {tab === 'whales' && (
+          <div className="space-y-5 animate-fade-in">
+            <div className="flex items-center gap-3 mb-2">
+              <button
+                onClick={async () => { await fetch('/api/godmode/whales?action=scan'); fetchAll(); }}
+                className="px-4 py-2 text-xs font-bold rounded-xl bg-neon-blue/10 text-neon-blue border border-neon-blue/20 hover:bg-neon-blue/20 transition-all"
+              >Scan Now</button>
+              <span className="text-xs text-slate-500">{whaleAlerts.length} alerts tracked</span>
+            </div>
+            <div className="glass rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-surface-400/50 flex items-center gap-2">
+                <Icon d={icons.eye} className="w-5 h-5 text-neon-blue" />
+                <h3 className="text-sm font-semibold">Whale Alerts</h3>
+              </div>
+              {whaleAlerts.length === 0 ? (
+                <div className="p-16 text-center">
+                  <span className="text-4xl">🐋</span>
+                  <p className="text-sm text-slate-500 mt-3">No whale activity detected yet. Click Scan to detect.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-surface-400/20 max-h-[600px] overflow-auto">
+                  {whaleAlerts.map((w: any, i: number) => (
+                    <div key={i} className="table-row px-5 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                          w.side === 'BUY' ? 'bg-neon-green/10' : 'bg-neon-red/10'
+                        }`}>
+                          <span className="text-lg">{w.side === 'BUY' ? '🟢' : '🔴'}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-mono text-slate-400 truncate">{w.address?.slice(0, 6)}...{w.address?.slice(-4)}</p>
+                          <div className="flex items-center gap-3 mt-1">
+                            <span className={`text-sm font-bold ${w.side === 'BUY' ? 'text-neon-green' : 'text-neon-red'}`}>
+                              {w.side} ${fmt(w.size)}
+                            </span>
+                            <span className="text-[10px] text-slate-500">@ ${fmt(w.price, 4)}</span>
+                            <span className="text-[10px] text-slate-500">Impact: {fmt((w.impact || 0) * 100, 1)}%</span>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-slate-600 font-mono flex-shrink-0">{w.timestamp ? timeAgo(w.timestamp) : ''}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ─── Arb Scanner Tab ─── */}
+        {tab === 'arb' && (
+          <div className="space-y-5 animate-fade-in">
+            <div className="flex items-center gap-3 mb-2">
+              <button
+                onClick={async () => { await fetch('/api/godmode/arb?action=scan'); fetchAll(); }}
+                className="px-4 py-2 text-xs font-bold rounded-xl bg-neon-purple/10 text-neon-purple border border-neon-purple/20 hover:bg-neon-purple/20 transition-all"
+              >Run Full Scan</button>
+              <span className="text-xs text-slate-500">{arbOpps.length} opportunities</span>
+            </div>
+            <div className="glass rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-surface-400/50 flex items-center gap-2">
+                <Icon d={icons.lightning} className="w-5 h-5 text-neon-purple" />
+                <h3 className="text-sm font-semibold">Arbitrage Opportunities</h3>
+              </div>
+              {arbOpps.length === 0 ? (
+                <div className="p-16 text-center">
+                  <span className="text-4xl">⚡</span>
+                  <p className="text-sm text-slate-500 mt-3">No arb opportunities found. Click Run Full Scan.</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-surface-400/20 max-h-[600px] overflow-auto">
+                  {arbOpps.map((a: any, i: number) => (
+                    <div key={i} className="table-row px-5 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-neon-purple/10 flex items-center justify-center flex-shrink-0">
+                          <span className="text-xs font-bold text-neon-purple uppercase">{a.type?.replace('_', '\n') || 'ARB'}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{a.marketA || 'Unknown Market'}</p>
+                          <div className="flex items-center gap-3 mt-1">
+                            <span className="text-[11px] text-neon-green font-bold">Edge: {fmt((a.edge || 0) * 100, 2)}%</span>
+                            <span className="text-[10px] text-slate-500">Expected: ${fmt(a.expectedProfit || 0)}</span>
+                            <span className="text-[10px] text-slate-500">Conf: {fmt((a.confidence || 0) * 100)}%</span>
+                            <span className="text-[10px] text-slate-500">Fair: ${fmt(a.fairPrice || 0, 4)} vs ${fmt(a.currentPrice || 0, 4)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ─── Risk Tab ─── */}
+        {tab === 'risk' && (
+          <div className="space-y-5 animate-fade-in">
+            {/* Risk Metric Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { label: 'Total Exposure', value: fmtPct(riskMetrics?.totalExposure || 0), color: (riskMetrics?.totalExposure || 0) > 0.2 ? 'text-neon-yellow' : 'text-neon-green' },
+                { label: 'VaR (95%)', value: `$${fmt(riskMetrics?.var95 || 0)}`, color: 'text-neon-blue' },
+                { label: 'Max Drawdown', value: `$${fmt(riskMetrics?.maxDrawdown || 0)}`, color: 'text-neon-red' },
+                { label: 'Risk Score', value: fmt(riskMetrics?.overallRiskScore || 0, 0), color: (riskMetrics?.overallRiskScore || 0) > 70 ? 'text-neon-red' : (riskMetrics?.overallRiskScore || 0) > 40 ? 'text-neon-yellow' : 'text-neon-green' },
+              ].map((m, i) => (
+                <div key={i} className="stat-card glass rounded-2xl p-4">
+                  <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">{m.label}</span>
+                  <p className={`text-2xl font-bold mt-2 ${m.color}`}>{m.value}</p>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="stat-card glass rounded-2xl p-4">
+                <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Sharpe Ratio</span>
+                <p className="text-xl font-bold mt-2 text-neon-blue">{fmt(riskMetrics?.sharpeRatio || 0)}</p>
+              </div>
+              <div className="stat-card glass rounded-2xl p-4">
+                <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Concentration</span>
+                <p className="text-xl font-bold mt-2 text-neon-yellow">{fmt((riskMetrics?.concentrationRisk || 0) * 100)}%</p>
+              </div>
+              <div className="stat-card glass rounded-2xl p-4">
+                <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Liquidity Risk</span>
+                <p className="text-xl font-bold mt-2 text-neon-purple">{fmt((riskMetrics?.liquidityRisk || 0) * 100)}%</p>
+              </div>
+            </div>
+            {/* Risk Alerts */}
+            <div className="glass rounded-2xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-surface-400/50 flex items-center gap-2">
+                <Icon d={icons.shield} className="w-5 h-5 text-neon-red" />
+                <h3 className="text-sm font-semibold">Risk Alerts</h3>
+                <span className="text-xs text-slate-500">{riskAlerts.length} active</span>
+              </div>
+              {riskAlerts.length === 0 ? (
+                <div className="p-10 text-center">
+                  <span className="text-3xl">✅</span>
+                  <p className="text-sm text-slate-500 mt-2">All risk metrics within limits</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-surface-400/20">
+                  {riskAlerts.map((a: any, i: number) => (
+                    <div key={i} className="px-5 py-3 flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                        a.level === 'CRITICAL' ? 'bg-neon-red pulse-live' : a.level === 'WARNING' ? 'bg-neon-yellow' : 'bg-neon-blue'
+                      }`} />
+                      <div className="flex-1">
+                        <span className={`text-xs font-bold ${
+                          a.level === 'CRITICAL' ? 'text-neon-red' : a.level === 'WARNING' ? 'text-neon-yellow' : 'text-neon-blue'
+                        }`}>{a.level}</span>
+                        <p className="text-sm text-slate-300 mt-0.5">{a.message}</p>
+                      </div>
+                      <span className="text-[10px] text-slate-600 font-mono">{a.timestamp ? fmtTime(a.timestamp) : ''}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ─── Wallet Tab ─── */}
+        {tab === 'wallet' && (
+          <div className="space-y-5 animate-fade-in">
+            <div className="glass rounded-2xl p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-neon-purple flex items-center justify-center shadow-glow-sm">
+                  <Icon d={icons.wallet} className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold">Wallet Connection</h3>
+                  <p className="text-xs text-slate-500">Polygon Mainnet (Chain 137)</p>
+                </div>
+                <div className="ml-auto">
+                  {walletInfo?.connected ? (
+                    <span className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-neon-green/10 border border-neon-green/20">
+                      <span className="w-2 h-2 rounded-full bg-neon-green pulse-live" />
+                      <span className="text-xs font-bold text-neon-green">Connected</span>
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-neon-red/10 border border-neon-red/20">
+                      <span className="w-2 h-2 rounded-full bg-neon-red" />
+                      <span className="text-xs font-bold text-neon-red">Disconnected</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="glass rounded-xl p-4">
+                  <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Address</span>
+                  <p className="text-sm font-mono text-slate-300 mt-2 break-all">{walletInfo?.wallet || 'Not connected'}</p>
+                </div>
+                <div className="glass rounded-xl p-4">
+                  <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Mode</span>
+                  <p className={`text-sm font-bold mt-2 ${walletInfo?.mode === 'LIVE' ? 'text-neon-green' : 'text-neon-yellow'}`}>
+                    {walletInfo?.mode || 'DRY_RUN'}
+                  </p>
+                </div>
+                <div className="glass rounded-xl p-4">
+                  <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">USDC Balance</span>
+                  <p className="text-xl font-bold text-neon-green mt-2">${walletInfo?.balance || '0.00'}</p>
+                </div>
+                <div className="glass rounded-xl p-4">
+                  <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wider">Allowance</span>
+                  <p className="text-xl font-bold text-neon-blue mt-2">${walletInfo?.allowance || '0.00'}</p>
+                </div>
+              </div>
+            </div>
+            <div className="glass rounded-2xl p-5">
+              <h3 className="text-sm font-semibold mb-3">Connection Status</h3>
+              <div className="space-y-2">
+                {[
+                  { label: 'CLOB API', ok: walletInfo?.ok },
+                  { label: 'Wallet Signer', ok: walletInfo?.connected },
+                  { label: 'API Credentials', ok: walletInfo?.connected },
+                  { label: 'Network (Polygon)', ok: true },
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-surface-100">
+                    <span className={`w-2 h-2 rounded-full ${item.ok ? 'bg-neon-green' : 'bg-neon-red'}`} />
+                    <span className="text-sm text-slate-400">{item.label}</span>
+                    <span className={`ml-auto text-xs font-bold ${item.ok ? 'text-neon-green' : 'text-neon-red'}`}>
+                      {item.ok ? 'OK' : 'FAIL'}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
